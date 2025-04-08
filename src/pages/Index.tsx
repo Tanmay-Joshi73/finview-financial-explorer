@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import FileUpload from "@/components/FileUpload";
-import { Loader2 } from "lucide-react";
+import { Loader2, PiggyBank, ChartBar, TrendingUp } from "lucide-react";
 import { DashboardData } from "@/types";
 
 const Index = () => {
@@ -21,14 +21,19 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="bg-white shadow">
-        <div className="container mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-finance-blue">FinView</h1>
-          <p className="text-gray-600">Financial Statement Explorer</p>
+      <header className="bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center">
+            <PiggyBank className="h-10 w-10 mr-3" />
+            <div>
+              <h1 className="text-4xl font-bold">FinView</h1>
+              <p className="text-blue-100">Financial Statement Explorer</p>
+            </div>
+          </div>
         </div>
       </header>
       
-      <main className="flex-1 bg-gray-50">
+      <main className="flex-1 bg-gradient-to-b from-gray-50 to-gray-100">
         {uploading ? (
           <div className="container mx-auto py-16 px-4">
             <div className="flex flex-col items-center justify-center">
@@ -38,12 +43,41 @@ const Index = () => {
             </div>
           </div>
         ) : (
-          <div className="container mx-auto py-16 px-4">
-            <div className="text-center mb-12">
-              <h1 className="text-4xl font-bold mb-4">Transform Your Bank Statements Into Insights</h1>
+          <div className="container mx-auto py-12 px-4">
+            <div className="text-center mb-10">
+              <h1 className="text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-blue-500 to-green-500">
+                Transform Your Financial Data Into Actionable Insights
+              </h1>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
                 Upload your bank statement and get a detailed breakdown of your spending habits, top merchants, and discover opportunities to save money.
               </p>
+            </div>
+            
+            {/* Feature Highlights */}
+            <div className="grid md:grid-cols-3 gap-8 mb-16">
+              <div className="feature-card">
+                <div className="feature-icon bg-blue-100">
+                  <ChartBar className="h-8 w-8 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-semibold mt-4">Spending Analytics</h3>
+                <p className="text-gray-600">Get a complete breakdown of your spending patterns and identify areas to save money.</p>
+              </div>
+              
+              <div className="feature-card">
+                <div className="feature-icon bg-green-100">
+                  <TrendingUp className="h-8 w-8 text-green-600" />
+                </div>
+                <h3 className="text-xl font-semibold mt-4">Visual Reports</h3>
+                <p className="text-gray-600">Interactive charts and graphs to help you understand your financial data at a glance.</p>
+              </div>
+              
+              <div className="feature-card">
+                <div className="feature-icon bg-purple-100">
+                  <PiggyBank className="h-8 w-8 text-purple-600" />
+                </div>
+                <h3 className="text-xl font-semibold mt-4">Saving Opportunities</h3>
+                <p className="text-gray-600">Discover where you can cut costs and build better financial habits.</p>
+              </div>
             </div>
             
             <FileUpload
@@ -54,9 +88,14 @@ const Index = () => {
         )}
       </main>
       
-      <footer className="bg-white border-t border-gray-200 py-6">
-        <div className="container mx-auto px-4 text-center text-gray-500 text-sm">
-          <p>FinView &copy; {new Date().getFullYear()} - Your data is processed securely and never stored</p>
+      <footer className="bg-blue-900 text-white py-8">
+        <div className="container mx-auto px-4 text-center">
+          <div className="mb-4">
+            <PiggyBank className="h-8 w-8 inline-block mr-2" />
+            <span className="text-xl font-bold">FinView</span>
+          </div>
+          <p className="text-blue-200">Your data is processed securely and never stored</p>
+          <p className="text-blue-300 text-sm mt-2">&copy; {new Date().getFullYear()} FinView - All Rights Reserved</p>
         </div>
       </footer>
     </div>

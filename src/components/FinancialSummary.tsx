@@ -1,5 +1,5 @@
 
-import { DollarSign, CreditCard, Calendar, TrendingUp } from "lucide-react";
+import { IndianRupee, CreditCard, Calendar, TrendingUp } from "lucide-react";
 import ExpenseCard from "@/components/ExpenseCard";
 import { SpendingSummary } from "@/types";
 
@@ -8,11 +8,11 @@ interface FinancialSummaryProps {
 }
 
 const FinancialSummary = ({ summary }: FinancialSummaryProps) => {
-  // Format dollar amount
+  // Format amount in Indian Rupees
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
       minimumFractionDigits: 2,
     }).format(amount);
   };
@@ -22,7 +22,7 @@ const FinancialSummary = ({ summary }: FinancialSummaryProps) => {
       <ExpenseCard
         title="Total Money Spent"
         value={formatCurrency(summary.totalSpent)}
-        icon={<DollarSign className="h-6 w-6" />}
+        icon={<IndianRupee className="h-6 w-6" />}
         color="blue"
       />
       

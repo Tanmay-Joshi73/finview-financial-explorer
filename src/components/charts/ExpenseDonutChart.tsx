@@ -9,11 +9,11 @@ interface ExpenseDonutChartProps {
 const COLORS = ['#1a73e8', '#4285f4', '#00c853', '#69F0AE', '#d32f2f', '#ffd600'];
 
 const ExpenseDonutChart = ({ data }: ExpenseDonutChartProps) => {
-  // Format for tooltip
+  // Format for tooltip - Indian Rupees
   const formatTooltip = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
       minimumFractionDigits: 2,
     }).format(value);
   };
