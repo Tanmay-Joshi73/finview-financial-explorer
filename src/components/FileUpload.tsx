@@ -2,7 +2,7 @@
 import { useState, useRef, DragEvent, ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { UploadCloud, FileText, Check, X, HelpCircle, File } from "lucide-react";
+import { UploadCloud, FileText, Check, X, HelpCircle, File, BarChart } from "lucide-react";
 import { api } from "@/services/api";
 import { DashboardData } from "@/types";
 
@@ -131,7 +131,7 @@ const FileUpload = ({ onUploadSuccess, onUploadStart }: FileUploadProps) => {
             
             <div className={`upload-process-step ${currentStep >= 3 ? 'active' : ''}`}>
               <div className="upload-process-icon">
-                <ChartBar className="h-6 w-6" />
+                <BarChart className="h-6 w-6" />
                 <span className="step-number">3</span>
               </div>
               <h3 className="text-lg font-medium mt-2">View Insights</h3>
