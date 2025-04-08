@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface TopVendorsProps {
   summary: SpendingSummary;
+  onVendorSelect?: (vendor: string) => void;
 }
 
-const TopVendors = ({ summary }: TopVendorsProps) => {
+const TopVendors = ({ summary, onVendorSelect }: TopVendorsProps) => {
   // Format currency in Indian Rupees
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -41,7 +42,11 @@ const TopVendors = ({ summary }: TopVendorsProps) => {
         <CardContent>
           <div className="space-y-4">
             {summary.topVendors.map((vendor, index) => (
-              <div key={vendor.vendor} className="flex items-center justify-between">
+              <div 
+                key={vendor.vendor} 
+                className={`flex items-center justify-between ${onVendorSelect ? 'cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors' : ''}`}
+                onClick={() => onVendorSelect && onVendorSelect(vendor.vendor)}
+              >
                 <div className="flex items-center">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center 
                     ${index === 0 ? 'bg-blue-600 text-white' : 
