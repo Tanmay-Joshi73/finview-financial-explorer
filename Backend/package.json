@@ -1,0 +1,39 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "This is a project of Helping the user to understanding its budget",
+  "license": "ISC",
+  "author": "Tanmay Josu",
+  "type": "commonjs",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@types/pdfjs-dist": "^2.10.377",
+    "cors": "^2.8.5",
+    "csv-writer": "^1.6.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "fs": "^0.0.1-security",
+    "helmet": "^8.1.0",
+    "mongoose": "^8.13.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.2",
+    "nodemon": "^3.1.9",
+    "path": "^0.12.7",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^1.1.1",
+    "pdf-parser": "^1.0.5",
+    "pdf2json": "^3.1.5",
+    "pdfjs-dist": "^5.1.91",
+    "pdfreader": "^3.0.7"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.1",
+    "@types/morgan": "^1.9.9",
+    "@types/multer": "^1.4.12",
+    "@types/pdf-parse": "^1.1.4",
+    "typescript": "^5.8.2"
+  }
+}
