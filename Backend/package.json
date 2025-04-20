@@ -10,13 +10,15 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.0",
     "@types/pdfjs-dist": "^2.10.377",
     "cors": "^2.8.5",
     "csv-writer": "^1.6.0",
-    "dotenv": "^16.4.7",
+    "dotenv": "^16.5.0",
     "express": "^4.21.2",
     "fs": "^0.0.1-security",
     "helmet": "^8.1.0",
+    "mongodb": "^6.15.0",
     "mongoose": "^8.13.2",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.2",
@@ -33,7 +35,8 @@
     "@types/express": "^5.0.1",
     "@types/morgan": "^1.9.9",
     "@types/multer": "^1.4.12",
+    "@types/node": "^22.14.1",
     "@types/pdf-parse": "^1.1.4",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.3"
   }
 }

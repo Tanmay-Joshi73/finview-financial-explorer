@@ -12,6 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getGeminiModel = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const Connect = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -21,4 +22,16 @@ const Connect = () => __awaiter(void 0, void 0, void 0, function* () {
         console.log(err);
     }
 });
+const generative_ai_1 = require("@google/generative-ai");
+const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GeminiApiKey);
+const getGeminiModel = () => {
+    return genAI.getGenerativeModel({
+        model: "gemini-pro",
+        generationConfig: {
+            maxOutputTokens: 2000,
+            temperature: 0.7
+        }
+    });
+};
+exports.getGeminiModel = getGeminiModel;
 exports.default = Connect;

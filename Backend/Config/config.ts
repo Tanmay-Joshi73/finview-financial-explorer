@@ -8,4 +8,18 @@ catch(err){
     console.log(err)
 }
 }
+
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const genAI = new GoogleGenerativeAI(process.env.GeminiApiKey!);
+
+export const getGeminiModel = () => {
+  return genAI.getGenerativeModel({ 
+    model: "gemini-pro",
+    generationConfig: {
+      maxOutputTokens: 2000,
+      temperature: 0.7
+    }
+  });
+};
 export default Connect;

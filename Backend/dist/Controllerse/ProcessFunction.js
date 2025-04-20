@@ -12,7 +12,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.InsertData = exports.Csv_Convertor = exports.ProcessFile = void 0;
+exports.fetchAggregatedData = exports.InsertData = exports.Csv_Convertor = exports.ProcessFile = void 0;
+exports.processTransactions = processTransactions;
 const fs = require('fs');
 const path = require('path');
 const trasanctions_1 = __importDefault(require("../Models/trasanctions"));
@@ -90,3 +91,53 @@ const InsertData = (Data) => __awaiter(void 0, void 0, void 0, function* () {
     yield trasanctions_1.default.insertMany(formattedData);
 });
 exports.InsertData = InsertData;
+function processTransactions(transactions) {
+    return transactions.map(t => {
+        const [time, period] = t.Paid_To_Who.time.split(' ');
+        const [hoursStr, minutesStr] = time.split(':');
+        const hours = parseInt(hoursStr);
+        const hour24 = period === 'PM' && hours !== 12 ? hours + 12 : hours;
+        return Object.assign(Object.assign({}, t), { processed: {
+                amount: parseFloat(t.Paid_To_Who.Amount),
+                hour24,
+                timeCategory: getTimeCategory(hour24),
+                dayOfWeek: new Date(t.Date).getDay(),
+                date: new Date(t.Date)
+            } });
+    });
+}
+function getTimeCategory(hour24) {
+    if (hour24 < 6)
+        return 'LateNight';
+    if (hour24 < 12)
+        return 'Morning';
+    if (hour24 < 17)
+        return 'Afternoon';
+    if (hour24 < 21)
+        return 'Evening';
+    return 'Night';
+}
+const fetchAggregatedData = () => __awaiter(void 0, void 0, void 0, function* () {
+    const transactions = yield trasanctions_1.default.find({});
+    const dailyMap = {};
+    for (const tx of transactions) {
+        const dateStr = tx.Date.toISOString().split('T')[0];
+        const amount = parseFloat(tx.Paid_To_Who.Amount);
+        if (!dailyMap[dateStr]) {
+            dailyMap[dateStr] = {
+                total: 0,
+                weekend: tx.Paid_To_Who.Weekend,
+            };
+        }
+        dailyMap[dateStr].total += amount;
+    }
+    // Sort by date
+    return Object.entries(dailyMap)
+        .map(([date, data]) => ({
+        date,
+        total: data.total.toFixed(2),
+        weekend: data.weekend ? 'Yes' : 'No',
+    }))
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+});
+exports.fetchAggregatedData = fetchAggregatedData;
