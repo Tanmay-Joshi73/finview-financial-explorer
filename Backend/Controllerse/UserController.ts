@@ -426,261 +426,253 @@ type PredictionResponse = {
 // Type Definitions
 type TimeSegment = 'morning' | 'afternoon' | 'evening' | 'night';
 type DayType = 'weekday' | 'weekend';
-function extractJsonFromResponse(text: string): PredictionResponse | null {
-  const jsonStart = text.indexOf('{');
-  const jsonEnd = text.lastIndexOf('}') + 1;
-  
-  if (jsonStart === -1 || jsonEnd === -1) return null;
 
-  try {
-    return JSON.parse(text.slice(jsonStart, jsonEnd)) as PredictionResponse;
-  } catch (e) {
-    return null;
-  }
-}
 
 export const GetPrediction = async (req: Request, res: Response): Promise<any> => {
   try {
-    // 1. Fetch transactions
     const data: Transaction[] = await Transactions_Collection.find();
     if (!data || data.length === 0) {
       return res.status(404).json({ message: "No transactions found" });
     }
 
-    // 2. Categorize and enrich transactions
-    const upiCategories: Record<string, RegExp> = {
-      food: /(?:zomato|swiggy|restaurant|cafe|food|eat|dining)/i,
-      shopping: /(?:amazon|flipkart|myntra|shop|store)/i,
-      bills: /(?:electricity|water|bill|payment|recharge)/i,
-      transport: /(?:uber|ola|rapido|fuel|petrol)/i,
-      entertainment: /(?:movie|netflix|prime|game|concert)/i,
-      healthcare: /(?:hospital|clinic|medicine|doctor|pharmacy|health|treatment|care)/i,
-      education: /(?:tuition|school|college|university|books|study|learning|education)/i,
-      fitness: /(?:gym|workout|fitness|yoga|exercise|trainer|wellness|sports)/i,
-      travel: /(?:airline|flight|train|hotel|trip|holiday|tour|car rental|cruise|tourism)/i,
-      charity: /(?:donation|charity|fundraiser|ngo|give|help|support|cause)/i,
-      legal: /(?:lawyer|legal|court|consultation|case|document|attorney)/i,
-      subscription: /(?:subscription|membership|renewal|plan|service|monthly|yearly|auto-renewal)/i,
-      realEstate: /(?:rent|property|home|real estate|apartment|house|broker|sale|renting)/i,
-      insurance: /(?:insurance|policy|health insurance|life insurance|car insurance|premium|coverage|claims)/i,
-      gaming: /(?:gaming|playstation|xbox|steam|games|online gaming|game card|purchase|game credit)/i,
-      onlinePayment: /(?:paytm|google pay|phonepe|amazon pay|razorpay|bhim|wallet|payment)/i,
-      petCare: /(?:pet|dog|cat|pet care|food|vet|grooming|pet insurance|vet visit)/i,
-      banking: /(?:bank|transfer|withdrawal|deposit|ATM|interest|loan|EMI|savings|account)/i,
-    };
+    const vendorStats: Record<string, {
+      totalAmount: number;
+      count: number;
+      months: Set<string>;
+      weekends: number;
+      weekdays: number;
+      times: Record<string, number>;
+    }> = {};
 
-    const enrichedData = data.map(tx => {
-      const description = tx.Paid_To_Who.name;
+    data.forEach(tx => {
+      const vendor = tx.Paid_To_Who.name.toLowerCase().trim();
       const amount = parseInt(tx.Paid_To_Who.Amount);
+      const isWeekend = tx.Paid_To_Who.Weekend;
+      const month = tx.month;
       const time = tx.Paid_To_Who.time;
+
+      if (!vendorStats[vendor]) {
+        vendorStats[vendor] = {
+          totalAmount: 0,
+          count: 0,
+          months: new Set(),
+          weekends: 0,
+          weekdays: 0,
+          times: { morning: 0, afternoon: 0, evening: 0, night: 0 }
+        };
+      }
+
       const [hourPart, minPart, period] = time.match(/(\d+):(\d+)\s?(AM|PM)/i) ?? ["0", "0", "AM"];
       let hour = parseInt(hourPart);
       if (period?.toUpperCase() === "PM" && hour !== 12) hour += 12;
       if (period?.toUpperCase() === "AM" && hour === 12) hour = 0;
 
       const timeOfDay =
-        hour >= 5 && hour < 12
-          ? "morning"
-          : hour >= 12 && hour < 17
-          ? "afternoon"
-          : hour >= 17 && hour < 21
-          ? "evening"
-          : "night";
+        hour >= 5 && hour < 12 ? "morning" :
+        hour >= 12 && hour < 17 ? "afternoon" :
+        hour >= 17 && hour < 21 ? "evening" : "night";
 
-      const month = tx.month || 'undefined';
-
-      let category = 'other';
-      for (const [cat, regex] of Object.entries(upiCategories)) {
-        if (regex.test(description)) {
-          category = cat;
-          break;
-        }
+      vendorStats[vendor].totalAmount += amount;
+      vendorStats[vendor].count++;
+      vendorStats[vendor].months.add(month);
+      vendorStats[vendor].times[timeOfDay]++;
+      if (isWeekend) {
+        vendorStats[vendor].weekends++;
+      } else {
+        vendorStats[vendor].weekdays++;
       }
-
-      return {
-        ...tx,
-        month,
-        upiAnalysis: {
-          category,
-          amount,
-          isLarge: amount > 2000,
-          timeOfDay,
-          isWeekend: tx.Paid_To_Who.Weekend
-        }
-      };
     });
 
-    // 3. Metrics calculation
-    const metrics: UPIMetrics = {
-      byCategory: {},
-      byTime: { morning: 0, afternoon: 0, evening: 0, night: 0 },
-      byDay: { weekday: 0, weekend: 0, avgWeekday: 0, avgWeekendDay: 0 },
-      largeTransactions: 0,
-      monthlyTrends: {}
+    const topVendors = Object.entries(vendorStats)
+      .sort((a, b) => b[1].totalAmount - a[1].totalAmount)
+      .slice(0, 6)
+      .map(([name, stats]) => ({
+        name,
+        category: categorizeVendor(name),
+        ...stats,
+        recurrence: stats.months.size > 1 ? 'recurring' : 'occasional',
+        months: Array.from(stats.months),
+        weekendPercentage: (stats.weekends / stats.count) * 100,
+        timeDistribution: stats.times
+      }));
+
+    const metrics = {
+      topVendors,
+      topVendorsCoverage: calculateTopVendorsCoverage(data, topVendors),
+      byCategory: calculateCategoryMetrics(topVendors),
+      monthlyTrends: calculateMonthlyTrends(data, topVendors.map(v => v.name))
     };
 
-    enrichedData.forEach(tx => {
-      const { category, amount, timeOfDay, isWeekend, isLarge } = tx.upiAnalysis;
-      const month = tx.month;
+    const prompt = generatePredictionPrompt(metrics, topVendors);
 
-      if (!metrics.byCategory[category]) {
-        metrics.byCategory[category] = { count: 0, total: 0, avgPerTransaction: 0 };
-      }
-
-      metrics.byCategory[category].count++;
-      metrics.byCategory[category].total += amount;
-      metrics.byTime[timeOfDay as keyof TimeMetrics] += amount;
-      metrics.byDay[isWeekend ? 'weekend' : 'weekday'] += amount;
-      if (isLarge) metrics.largeTransactions++;
-
-      if (!metrics.monthlyTrends[month]) {
-        metrics.monthlyTrends[month] = { total: 0, count: 0, avgPerDay: 0 };
-      }
-      metrics.monthlyTrends[month].total += amount;
-      metrics.monthlyTrends[month].count++;
-    });
-
-    Object.entries(metrics.byCategory).forEach(([cat, data]) => {
-      data.avgPerTransaction = data.total / data.count;
-    });
-
-    metrics.byDay.avgWeekday = metrics.byDay.weekday / 5;
-    metrics.byDay.avgWeekendDay = metrics.byDay.weekend / 2;
-
-    Object.entries(metrics.monthlyTrends).forEach(([month, info]) => {
-      const daysInMonth = new Date(2023, ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(month) + 1, 0).getDate();
-      info.avgPerDay = info.total / daysInMonth;
-    });
-
-    // 4. Gemini prompt generation
-    const prompt = `
-**📊 UPI Spending Prediction Request for Smart Insights**
-
-**🗓 Historical Monthly Overview:**
-Months Available: ${Object.keys(metrics.monthlyTrends).join(', ')}
-Total Transactions: ${data.length}
-
-${Object.entries(metrics.monthlyTrends).map(([month, m]) =>
-  `- ${month}: ₹${m.total} across ${m.count} txns (₹${m.avgPerDay.toFixed(2)}/day)`
-).join('\n')}
-
-**📅 Daywise Trends:**
-- Weekdays: ₹${metrics.byDay.weekday} total (Avg: ₹${metrics.byDay.avgWeekday.toFixed(2)}/day)
-- Weekends: ₹${metrics.byDay.weekend} total (Avg: ₹${metrics.byDay.avgWeekendDay.toFixed(2)}/day)
-
-**⏰ Time-Based Spending:**
-- Morning: ₹${metrics.byTime.morning}
-- Afternoon: ₹${metrics.byTime.afternoon}
-- Evening: ₹${metrics.byTime.evening}
-- Night: ₹${metrics.byTime.night}
-
-**📂 Category Spending:**
-${Object.entries(metrics.byCategory).map(([cat, d]) =>
-  `- ${cat}: ₹${d.total} in ${d.count} txns (₹${d.avgPerTransaction.toFixed(2)} avg)`
-).join('\n')}
-
-**🔮 Prediction Goals:**
-1. Predict total next month spending (range + confidence)
-2. Estimate weekend vs weekday trends
-3. Highlight time-based & category risks (esp. night spends)
-4. Give suggestions for smart savings and control
-
-**Expected JSON Output:**
-{
-  "predictions": {
-    "monthly": {
-      "estimatedTotal": {"min": number, "max": number},
-      "primaryCategories": [
-        {"category": string, "expectedAmount": number, "percentage": number}
-      ],
-      "confidence": "low|medium|high"
-    },
-    "weekly": {
-      "weekendEstimate": {"min": number, "max": number},
-      "weekdayEstimate": {"min": number, "max": number},
-      "confidence": "low|medium|high"
-    }
-  },
-  "insights": {
-    "topPatterns": string[],
-    "riskFactors": string[]
-  },
-  "recommendations": {
-    "immediate": string[],
-    "longTerm": string[]
-  }
-}
-`;
-
-    // 5. Send to Gemini API
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
 
-    // 6. Parse and enhance Gemini response
-    let prediction: PredictionResponse | { rawResponse: string } = { rawResponse: responseText };
-    const parsedResponse = extractJsonFromResponse(responseText);
-
-    if (parsedResponse) {
-      // Add fallbacks if Gemini misses any part
-      if (!parsedResponse.predictions?.monthly) {
-        const avg = Object.values(metrics.monthlyTrends).reduce((a, b) => a + b.total, 0) / Object.keys(metrics.monthlyTrends).length;
-        const top3 = Object.entries(metrics.byCategory).sort((a, b) => b[1].total - a[1].total).slice(0, 3);
-
-        parsedResponse.predictions = {
-          ...parsedResponse.predictions,
-          monthly: {
-            estimatedTotal: {
-              min: Math.round(avg * 0.8),
-              max: Math.round(avg * 1.2)
-            },
-            primaryCategories: top3.map(([cat, d]) => ({
-              category: cat,
-              expectedAmount: Math.round(d.total / Object.keys(metrics.monthlyTrends).length),
-              percentage: Math.round((d.total / avg) * 100)
-            })),
-            confidence: "medium"
-          }
-        };
-      }
-
-      if (!parsedResponse.predictions?.weekly) {
-        parsedResponse.predictions = {
-          ...parsedResponse.predictions,
-          weekly: {
-            weekendEstimate: {
-              min: Math.round(metrics.byDay.avgWeekendDay * 0.7),
-              max: Math.round(metrics.byDay.avgWeekendDay * 1.3)
-            },
-            weekdayEstimate: {
-              min: Math.round(metrics.byDay.avgWeekday * 0.7),
-              max: Math.round(metrics.byDay.avgWeekday * 1.3)
-            },
-            confidence: "medium"
-          }
-        };
-      }
-
-      prediction = parsedResponse;
-    }
-
-    // 7. Return result
     return res.status(200).json({
       success: true,
-      metrics,
-      prediction
+      metrics: {
+        topVendors: topVendors.map(v => ({
+          name: v.name,
+          totalAmount: v.totalAmount,
+          category: v.category,
+          recurrence: v.recurrence,
+          weekendPercentage: v.weekendPercentage.toFixed(1),
+          timeDistribution: v.timeDistribution
+        })),
+        topVendorsCoverage: metrics.topVendorsCoverage,
+        categoryDistribution: metrics.byCategory,
+        monthlyTrends: metrics.monthlyTrends
+      },
+      prediction: extractJsonFromResponse(responseText) || { rawResponse: responseText }
     });
 
   } catch (err) {
-    console.error("UPI Prediction error:", err);
+    console.error("Prediction error:", err);
     return res.status(500).json({
       success: false,
       error: "Prediction failed",
       details: err instanceof Error ? err.message : String(err)
     });
   }
+};
+
+// Helper functions
+function categorizeVendor(vendor: string): string {
+  const vendorLower = vendor.toLowerCase();
+  if (/restaurant|cafe|food|dining|zomato|swiggy/.test(vendorLower)) return 'food';
+  if (/amazon|flipkart|myntra|shop|store|mart/.test(vendorLower)) return 'shopping';
+  if (/electricity|water|bill|payment|recharge/.test(vendorLower)) return 'bills';
+  if (/uber|ola|rapido|taxi|cab|transport/.test(vendorLower)) return 'transport';
+  return 'other';
 }
 
+function calculateTopVendorsCoverage(data: Transaction[], topVendors: any[]): number {
+  const topVendorNames = topVendors.map(v => v.name);
+  const totalSpending = data.reduce((sum, tx) => sum + parseInt(tx.Paid_To_Who.Amount), 0);
+  const topVendorsSpending = data
+    .filter(tx => topVendorNames.includes(tx.Paid_To_Who.name.toLowerCase().trim()))
+    .reduce((sum, tx) => sum + parseInt(tx.Paid_To_Who.Amount), 0);
+  
+  return (topVendorsSpending / totalSpending) * 100;
+}
+
+function calculateCategoryMetrics(topVendors: any[]): Record<string, { total: number; percentage: number }> {
+  const categoryMap: Record<string, number> = {};
+  const total = topVendors.reduce((sum, vendor) => sum + vendor.totalAmount, 0);
+
+  topVendors.forEach(vendor => {
+    if (!categoryMap[vendor.category]) {
+      categoryMap[vendor.category] = 0;
+    }
+    categoryMap[vendor.category] += vendor.totalAmount;
+  });
+
+  return Object.fromEntries(
+    Object.entries(categoryMap).map(([category, totalAmount]) => [
+      category,
+      { 
+        total: totalAmount,
+        percentage: (totalAmount / total) * 100
+      }
+    ])
+  );
+}
+
+function calculateMonthlyTrends(data: Transaction[], topVendorNames: string[]) {
+  const monthlyData: Record<string, { total: number; topVendorContribution: number }> = {};
+
+  data.forEach(tx => {
+    const month = tx.month;
+    const amount = parseInt(tx.Paid_To_Who.Amount);
+    const isTopVendor = topVendorNames.includes(tx.Paid_To_Who.name.toLowerCase().trim());
+
+    if (!monthlyData[month]) {
+      monthlyData[month] = { total: 0, topVendorContribution: 0 };
+    }
+
+    monthlyData[month].total += amount;
+    if (isTopVendor) monthlyData[month].topVendorContribution += amount;
+  });
+
+  return monthlyData;
+}
+
+function generatePredictionPrompt(
+  metrics: {
+    topVendors: any[];
+    topVendorsCoverage: number;
+    byCategory: Record<string, { total: number; percentage: number }>;
+    monthlyTrends: Record<string, { total: number; topVendorContribution: number }>;
+  },
+  topVendors: any[]
+) {
+  return `
+**Top Vendors Analysis for Spending Prediction**
+
+**🏆 Top ${topVendors.length} Vendors (${metrics.topVendorsCoverage.toFixed(1)}% of total spending):**
+${topVendors.map(v => `- ${v.name}: ₹${v.totalAmount} (${v.category}, ${v.recurrence}, ${v.weekendPercentage.toFixed(1)}% weekends)`).join('\n')}
+
+**📊 Category Distribution:**
+${Object.entries(metrics.byCategory).map(([cat, data]) => 
+  `- ${cat}: ₹${data.total} (${data.percentage.toFixed(1)}%)`).join('\n')}
+
+**📅 Monthly Trends:**
+${Object.entries(metrics.monthlyTrends).map(([month, data]) =>
+  `- ${month}: ₹${data.total} total (₹${data.topVendorContribution} from top vendors)`
+).join('\n')}
+
+**🔮 Prediction Focus:**
+1. Estimate next month's spending based on top vendors' patterns
+2. Predict which categories will dominate based on top vendors
+3. Highlight potential savings opportunities from recurring top vendors
+4. Provide specific recommendations for each major vendor
+
+**Expected Output Format:**
+{
+  "prediction": {
+    "nextMonthEstimate": {
+      "min": number,
+      "max": number,
+      "confidence": "low|medium|high"
+    },
+    "keyVendors": [
+      {
+        "name": string,
+        "expectedAmount": number,
+        "recurring": boolean,
+        "riskLevel": "low|medium|high"
+      }
+    ],
+    "categoryTrends": [
+      {
+        "category": string,
+        "trend": "increase|decrease|stable",
+        "reason": string
+      }
+    ]
+  },
+  "recommendations": {
+    "vendorSpecific": [
+      {
+        "vendor": string,
+        "action": string,
+        "potentialSavings": string
+      }
+    ],
+    "general": string[]
+  }
+}`;
+}
+
+function extractJsonFromResponse(response: string): any {
+  try {
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+  } catch (e) {
+    return null;
+  }
+}
 
 // Investment suggestion function
 export const InvestSuggestion = async (req: Request, res: Response): Promise<any> => {
