@@ -12,4 +12,5 @@ router.get('/GetData', UserController_js_1.FetchData);
 router.get('/Aggregate-Dashboard', UserController_js_1.ProcessData);
 router.get('/Aggregate-VendorsData', UserController_js_1.VendorsData);
 router.get('/Overall', UserController_js_1.GetPrediction);
+router.get('/Investment', UserController_js_1.InvestSuggestion);
 exports.default = router;

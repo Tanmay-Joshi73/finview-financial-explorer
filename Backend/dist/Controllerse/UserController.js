@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.GetPrediction = exports.VendorsData = exports.ProcessData = exports.FetchData = exports.Process = void 0;
+exports.InvestSuggestion = exports.GetPrediction = exports.VendorsData = exports.ProcessData = exports.FetchData = exports.Process = void 0;
 const fs_1 = __importDefault(require("fs"));
 const ProcessFunction_js_1 = require("./ProcessFunction.js");
 const ProcessFunction_js_2 = require("./ProcessFunction.js");
@@ -32,6 +32,7 @@ const Process = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const CsvPath = './exports/trasanctions.csv';
     (0, ProcessFunction_js_2.Csv_Convertor)(data, CsvPath);
     (0, ProcessFunction_js_2.InsertData)(data);
+    res.send(data);
 });
 exports.Process = Process;
 const FetchData = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -39,21 +40,38 @@ const FetchData = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     console.log(data);
 });
 exports.FetchData = FetchData;
-const ProcessData = (Req, Res) => __awaiter(void 0, void 0, void 0, function* () {
+const ProcessData = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const pipeline = [
+        {
+            $match: {
+                transactionType: "DEBIT" // Only include expenses
+            }
+        },
         {
             $addFields: {
                 amount: { $toDouble: "$Paid_To_Who.Amount" },
                 vendor: "$Paid_To_Who.name",
                 hour: { $hour: "$Date" },
-                monthName: "$month",
+                isWeekend: "$Paid_To_Who.Weekend",
                 clock: "$Paid_To_Who.time",
-                timeBlock: {
-                    $concat: [
-                        { $toString: { $floor: { $divide: ["$clock", 2] } } },
-                        "-",
-                        { $toString: { $add: [{ $floor: { $divide: ["$clock", 2] } }, 2] } }
+                monthName: "$month",
+                dayOfWeek: {
+                    $arrayElemAt: [
+                        ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+                        { $subtract: [{ $dayOfWeek: "$Date" }, 1] }
                     ]
+                },
+                timeBlock: {
+                    $switch: {
+                        branches: [
+                            { case: { $lte: ["$hour", 5] }, then: "Late Night" },
+                            { case: { $lte: ["$hour", 11] }, then: "Morning" },
+                            { case: { $lte: ["$hour", 16] }, then: "Afternoon" },
+                            { case: { $lte: ["$hour", 20] }, then: "Evening" },
+                            { case: { $lte: ["$hour", 23] }, then: "Night" }
+                        ],
+                        default: "Unknown"
+                    }
                 }
             }
         },
@@ -63,78 +81,107 @@ const ProcessData = (Req, Res) => __awaiter(void 0, void 0, void 0, function* ()
                     {
                         $group: {
                             _id: null,
-                            Total: { $sum: "$amount" }
+                            totalAmount: { $sum: "$amount" },
+                            transactionCount: { $sum: 1 }
                         }
                     }
                 ],
-                Month: [
+                MonthlySpending: [
                     {
                         $group: {
-                            _id: "$month",
-                            MonthSpending: { $sum: "$amount" },
-                            TotalTransaction: { $sum: 1 }
+                            _id: "$monthName",
+                            total: { $sum: "$amount" },
+                            count: { $sum: 1 }
                         }
-                    }
+                    },
+                    {
+                        $addFields: {
+                            sortOrder: {
+                                $indexOfArray: [
+                                    ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+                                    "$_id"
+                                ]
+                            }
+                        }
+                    },
+                    { $sort: { sortOrder: 1 } },
+                    { $project: { sortOrder: 0 } }
                 ],
-                TopVendor: [
+                TopVendors: [
                     {
                         $group: {
                             _id: "$vendor",
-                            VendorSpending: { $sum: "$amount" },
-                            TransactionCount: { $sum: 1 }
+                            total: { $sum: "$amount" },
+                            count: { $sum: 1 }
+                        }
+                    },
+                    { $sort: { total: -1 } },
+                    { $limit: 5 }
+                ],
+                SpendingByTimeBlock: [
+                    {
+                        $group: {
+                            _id: "$timeBlock",
+                            total: { $sum: "$amount" },
+                            count: { $sum: 1 }
+                        }
+                    },
+                    { $sort: { total: -1 } }
+                ],
+                WeekendVsWeekday: [
+                    {
+                        $group: {
+                            _id: "$isWeekend",
+                            total: { $sum: "$amount" },
+                            count: { $sum: 1 }
+                        }
+                    }
+                ],
+                SpendingByDayOfWeek: [
+                    {
+                        $group: {
+                            _id: "$dayOfWeek",
+                            total: { $sum: "$amount" },
+                            count: { $sum: 1 }
                         }
                     },
                     {
-                        $sort: { "VendorSpending": -1 } // TypeScript needs this exact syntax
+                        $addFields: {
+                            sortOrder: {
+                                $indexOfArray: [
+                                    ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+                                    "$_id"
+                                ]
+                            }
+                        }
                     },
-                    {
-                        $limit: 5
-                    }
-                ],
-                // PeakHours: [
-                //     {
-                //       $group: {
-                //         _id: "$clock",
-                //         transactionCount: { $sum: 1 },
-                //         totalAmount: { $sum: "$amount" }
-                //       }
-                //     },
-                //     { $sort: {"transactionCount": -1 as  const } },
-                //     { $limit: 3 },
-                //     {
-                //       $project: {
-                //         hourRange: {
-                //           $concat: [
-                //             { $toString: "$_id" },
-                //             ":00-",
-                //             { $toString: { $add: ["$_id", 1] } },
-                //             ":00"
-                //           ]
-                //         },
-                //         transactionCount: 1,
-                //         totalAmount: 1,
-                //         _id: 0
-                //       }
-                //     }
-                //   ],
+                    { $sort: { sortOrder: 1 } },
+                    { $project: { sortOrder: 0 } }
+                ]
             }
         }
     ];
     const result = yield trasanctions_js_1.default.aggregate(pipeline);
-    // const totalAmount = result[0].MonthSpending[0];
-    console.log(result[0]);
+    const response = {
+        totalSpent: result[0].TotalSpent[0] || {},
+        monthly: result[0].MonthlySpending,
+        topVendors: result[0].TopVendors,
+        timeBlocks: result[0].SpendingByTimeBlock,
+        weekendVsWeekday: result[0].WeekendVsWeekday,
+        dayOfWeek: result[0].SpendingByDayOfWeek
+    };
+    res.status(200).json(response);
 });
 exports.ProcessData = ProcessData;
 const VendorsData = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const vendorAnalyticsPipeline = [
-        // Stage 1: Filter and prepare data
         {
             $match: {
                 "Paid_To_Who.name": { $exists: true, $ne: null },
-                "Paid_To_Who.Amount": { $exists: true, $ne: null }
+                "Paid_To_Who.Amount": { $exists: true, $ne: null },
+                transactionType: "DEBIT"
             }
         },
-        // Stage 2: Convert and add fields
         {
             $addFields: {
                 amount: {
@@ -145,16 +192,19 @@ const VendorsData = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                         onNull: 0
                     }
                 },
-                vendor: "$Paid_To_Who.name",
+                vendor: {
+                    $toLower: {
+                        $trim: { input: "$Paid_To_Who.name" }
+                    }
+                },
                 date: "$Date",
                 month: { $month: "$Date" },
+                dayOfWeek: { $dayOfWeek: "$Date" },
                 hour: { $hour: "$Date" }
             }
         },
-        // Stage 3: Main vendor analytics
         {
             $facet: {
-                // Basic vendor stats
                 vendorStats: [
                     {
                         $group: {
@@ -168,7 +218,6 @@ const VendorsData = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                     },
                     { $sort: { totalSpent: -1 } }
                 ],
-                // Monthly spending patterns
                 monthlyPatterns: [
                     {
                         $group: {
@@ -193,7 +242,6 @@ const VendorsData = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                         }
                     }
                 ],
-                // Time-of-day patterns
                 timePatterns: [
                     {
                         $bucket: {
@@ -208,48 +256,79 @@ const VendorsData = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
                         }
                     }
                 ],
-                // Recent activity
-                recentActivity: [
-                    { $sort: { date: -1 } },
+                dailyPatterns: [
                     {
-                        $group: {
-                            _id: "$vendor",
-                            mostRecent: { $first: "$date" },
-                            recentAmount: { $first: "$amount" }
+                        $addFields: {
+                            dayName: {
+                                $arrayElemAt: [
+                                    [
+                                        "Sunday",
+                                        "Monday",
+                                        "Tuesday",
+                                        "Wednesday",
+                                        "Thursday",
+                                        "Friday",
+                                        "Saturday"
+                                    ],
+                                    { $subtract: ["$dayOfWeek", 1] }
+                                ]
+                            }
                         }
                     },
-                    { $limit: 10 }
-                ]
-            }
-        },
-        // Stage 4: Combine and format results
-        {
-            $project: {
-                vendorStats: 1,
-                monthlyPatterns: {
-                    $map: {
-                        input: "$vendorStats",
-                        as: "vendor",
-                        in: {
-                            vendor: "$$vendor._id",
-                            stats: "$$vendor",
-                            monthlyData: {
-                                $filter: {
-                                    input: "$monthlyPatterns",
-                                    as: "monthly",
-                                    cond: { $eq: ["$$monthly._id", "$$vendor._id"] }
+                    {
+                        $group: {
+                            _id: {
+                                vendor: "$vendor",
+                                day: "$dayName"
+                            },
+                            total: { $sum: "$amount" },
+                            count: { $sum: 1 }
+                        }
+                    },
+                    {
+                        $group: {
+                            _id: "$_id.vendor",
+                            dayWise: {
+                                $push: {
+                                    day: "$_id.day",
+                                    total: "$total",
+                                    count: "$count"
                                 }
                             }
                         }
                     }
-                },
-                timePatterns: 1,
-                recentActivity: 1
+                ],
+                recentTransactions: [
+                    { $sort: { date: -1 } },
+                    {
+                        $group: {
+                            _id: "$vendor",
+                            recent: {
+                                $push: {
+                                    amount: "$amount",
+                                    date: "$date"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        $project: {
+                            recent: { $slice: ["$recent", 5] }
+                        }
+                    }
+                ]
             }
         }
     ];
     const Result = yield trasanctions_js_1.default.aggregate(vendorAnalyticsPipeline);
-    console.log(JSON.stringify(Result));
+    const [data] = Result;
+    res.status(200).json({
+        vendorStats: data.vendorStats,
+        monthlyPatterns: data.monthlyPatterns,
+        timePatterns: data.timePatterns,
+        dailyPatterns: data.dailyPatterns,
+        recentTransactions: data.recentTransactions
+    });
 });
 exports.VendorsData = VendorsData;
 function extractJsonFromResponse(text) {
@@ -272,20 +351,45 @@ const GetPrediction = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         if (!data || data.length === 0) {
             return res.status(404).json({ message: "No transactions found" });
         }
-        // 2. Categorize and analyze transactions
+        // 2. Categorize and enrich transactions
         const upiCategories = {
             food: /(?:zomato|swiggy|restaurant|cafe|food|eat|dining)/i,
             shopping: /(?:amazon|flipkart|myntra|shop|store)/i,
             bills: /(?:electricity|water|bill|payment|recharge)/i,
             transport: /(?:uber|ola|rapido|fuel|petrol)/i,
-            entertainment: /(?:movie|netflix|prime|game|concert)/i
+            entertainment: /(?:movie|netflix|prime|game|concert)/i,
+            healthcare: /(?:hospital|clinic|medicine|doctor|pharmacy|health|treatment|care)/i,
+            education: /(?:tuition|school|college|university|books|study|learning|education)/i,
+            fitness: /(?:gym|workout|fitness|yoga|exercise|trainer|wellness|sports)/i,
+            travel: /(?:airline|flight|train|hotel|trip|holiday|tour|car rental|cruise|tourism)/i,
+            charity: /(?:donation|charity|fundraiser|ngo|give|help|support|cause)/i,
+            legal: /(?:lawyer|legal|court|consultation|case|document|attorney)/i,
+            subscription: /(?:subscription|membership|renewal|plan|service|monthly|yearly|auto-renewal)/i,
+            realEstate: /(?:rent|property|home|real estate|apartment|house|broker|sale|renting)/i,
+            insurance: /(?:insurance|policy|health insurance|life insurance|car insurance|premium|coverage|claims)/i,
+            gaming: /(?:gaming|playstation|xbox|steam|games|online gaming|game card|purchase|game credit)/i,
+            onlinePayment: /(?:paytm|google pay|phonepe|amazon pay|razorpay|bhim|wallet|payment)/i,
+            petCare: /(?:pet|dog|cat|pet care|food|vet|grooming|pet insurance|vet visit)/i,
+            banking: /(?:bank|transfer|withdrawal|deposit|ATM|interest|loan|EMI|savings|account)/i,
         };
         const enrichedData = data.map(tx => {
+            var _a;
             const description = tx.Paid_To_Who.name;
             const amount = parseInt(tx.Paid_To_Who.Amount);
             const time = tx.Paid_To_Who.time;
-            const [hours, period] = time.split(/:| /);
-            const hour = parseInt(hours) + (period === 'PM' && hours !== '12' ? 12 : 0);
+            const [hourPart, minPart, period] = (_a = time.match(/(\d+):(\d+)\s?(AM|PM)/i)) !== null && _a !== void 0 ? _a : ["0", "0", "AM"];
+            let hour = parseInt(hourPart);
+            if ((period === null || period === void 0 ? void 0 : period.toUpperCase()) === "PM" && hour !== 12)
+                hour += 12;
+            if ((period === null || period === void 0 ? void 0 : period.toUpperCase()) === "AM" && hour === 12)
+                hour = 0;
+            const timeOfDay = hour >= 5 && hour < 12
+                ? "morning"
+                : hour >= 12 && hour < 17
+                    ? "afternoon"
+                    : hour >= 17 && hour < 21
+                        ? "evening"
+                        : "night";
             const month = tx.month || 'undefined';
             let category = 'other';
             for (const [cat, regex] of Object.entries(upiCategories)) {
@@ -298,11 +402,11 @@ const GetPrediction = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                     category,
                     amount,
                     isLarge: amount > 2000,
-                    timeOfDay: hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : hour < 22 ? 'evening' : 'night',
+                    timeOfDay,
                     isWeekend: tx.Paid_To_Who.Weekend
                 } });
         });
-        // 3. Calculate metrics
+        // 3. Metrics calculation
         const metrics = {
             byCategory: {},
             byTime: { morning: 0, afternoon: 0, evening: 0, night: 0 },
@@ -310,15 +414,12 @@ const GetPrediction = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             largeTransactions: 0,
             monthlyTrends: {}
         };
-        // Process transactions
         enrichedData.forEach(tx => {
             const { category, amount, timeOfDay, isWeekend, isLarge } = tx.upiAnalysis;
             const month = tx.month;
-            // Initialize category if not exists
             if (!metrics.byCategory[category]) {
                 metrics.byCategory[category] = { count: 0, total: 0, avgPerTransaction: 0 };
             }
-            // Update metrics
             metrics.byCategory[category].count++;
             metrics.byCategory[category].total += amount;
             metrics.byTime[timeOfDay] += amount;
@@ -331,100 +432,91 @@ const GetPrediction = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             metrics.monthlyTrends[month].total += amount;
             metrics.monthlyTrends[month].count++;
         });
-        // Calculate averages
-        Object.keys(metrics.byCategory).forEach(cat => {
-            metrics.byCategory[cat].avgPerTransaction = metrics.byCategory[cat].total / metrics.byCategory[cat].count;
+        Object.entries(metrics.byCategory).forEach(([cat, data]) => {
+            data.avgPerTransaction = data.total / data.count;
         });
         metrics.byDay.avgWeekday = metrics.byDay.weekday / 5;
         metrics.byDay.avgWeekendDay = metrics.byDay.weekend / 2;
-        Object.keys(metrics.monthlyTrends).forEach(month => {
+        Object.entries(metrics.monthlyTrends).forEach(([month, info]) => {
             const daysInMonth = new Date(2023, ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].indexOf(month) + 1, 0).getDate();
-            metrics.monthlyTrends[month].avgPerDay = metrics.monthlyTrends[month].total / daysInMonth;
+            info.avgPerDay = info.total / daysInMonth;
         });
-        // 4. Generate prediction prompt
+        // 4. Gemini prompt generation
         const prompt = `
-    **UPI Spending Prediction Request**
-    
-    **Historical Data:**
-    - Months Available: ${Object.keys(metrics.monthlyTrends).join(', ')}
-    - Total Transactions: ${data.length}
-    
-    **Monthly Spending:**
-    ${Object.entries(metrics.monthlyTrends).map(([month, data]) => `- ${month}: ₹${data.total} (${data.count} transactions, ₹${data.avgPerDay.toFixed(2)}/day)`).join('\n')}
-    
-    **Weekly Patterns:**
-    - Weekdays: ₹${metrics.byDay.weekday} total (₹${metrics.byDay.avgWeekday.toFixed(2)}/day)
-    - Weekends: ₹${metrics.byDay.weekend} total (₹${metrics.byDay.avgWeekendDay.toFixed(2)}/day)
-    
-    **Category Breakdown:**
-    ${Object.entries(metrics.byCategory).map(([cat, data]) => `- ${cat}: ₹${data.total} (${data.count} txns, ₹${data.avgPerTransaction.toFixed(2)} avg)`).join('\n')}
-    
-    **Time Patterns:**
-    - Morning: ₹${metrics.byTime.morning}
-    - Afternoon: ₹${metrics.byTime.afternoon}
-    - Evening: ₹${metrics.byTime.evening}
-    - Night: ₹${metrics.byTime.night}
-    
-    **Prediction Guidelines:**
-    1. Calculate next month's total spending range considering:
-       - Recent monthly trends
-       - Current spending patterns
-       - Category distributions
-    2. Predict next weekend's likely spending range based on:
-       - Historical weekend averages
-       - Recent weekend trends
-    3. Identify key insights and recommendations
-    
-    **Response Format (JSON):**
-    {
-      "predictions": {
-        "monthly": {
-          "estimatedTotal": {"min": number, "max": number},
-          "primaryCategories": [
-            {"category": string, "expectedAmount": number, "percentage": number}
-          ],
-          "confidence": "low|medium|high"
-        },
-        "weekly": {
-          "weekendEstimate": {"min": number, "max": number},
-          "weekdayEstimate": {"min": number, "max": number},
-          "confidence": "low|medium|high"
-        }
-      },
-      "insights": {
-        "topPatterns": string[],
-        "riskFactors": string[]
-      },
-      "recommendations": {
-        "immediate": string[],
-        "longTerm": string[]
-      }
-    }`;
-        // 5. Get prediction from Gemini
+**📊 UPI Spending Prediction Request for Smart Insights**
+
+**🗓 Historical Monthly Overview:**
+Months Available: ${Object.keys(metrics.monthlyTrends).join(', ')}
+Total Transactions: ${data.length}
+
+${Object.entries(metrics.monthlyTrends).map(([month, m]) => `- ${month}: ₹${m.total} across ${m.count} txns (₹${m.avgPerDay.toFixed(2)}/day)`).join('\n')}
+
+**📅 Daywise Trends:**
+- Weekdays: ₹${metrics.byDay.weekday} total (Avg: ₹${metrics.byDay.avgWeekday.toFixed(2)}/day)
+- Weekends: ₹${metrics.byDay.weekend} total (Avg: ₹${metrics.byDay.avgWeekendDay.toFixed(2)}/day)
+
+**⏰ Time-Based Spending:**
+- Morning: ₹${metrics.byTime.morning}
+- Afternoon: ₹${metrics.byTime.afternoon}
+- Evening: ₹${metrics.byTime.evening}
+- Night: ₹${metrics.byTime.night}
+
+**📂 Category Spending:**
+${Object.entries(metrics.byCategory).map(([cat, d]) => `- ${cat}: ₹${d.total} in ${d.count} txns (₹${d.avgPerTransaction.toFixed(2)} avg)`).join('\n')}
+
+**🔮 Prediction Goals:**
+1. Predict total next month spending (range + confidence)
+2. Estimate weekend vs weekday trends
+3. Highlight time-based & category risks (esp. night spends)
+4. Give suggestions for smart savings and control
+
+**Expected JSON Output:**
+{
+  "predictions": {
+    "monthly": {
+      "estimatedTotal": {"min": number, "max": number},
+      "primaryCategories": [
+        {"category": string, "expectedAmount": number, "percentage": number}
+      ],
+      "confidence": "low|medium|high"
+    },
+    "weekly": {
+      "weekendEstimate": {"min": number, "max": number},
+      "weekdayEstimate": {"min": number, "max": number},
+      "confidence": "low|medium|high"
+    }
+  },
+  "insights": {
+    "topPatterns": string[],
+    "riskFactors": string[]
+  },
+  "recommendations": {
+    "immediate": string[],
+    "longTerm": string[]
+  }
+}
+`;
+        // 5. Send to Gemini API
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
         const result = yield model.generateContent(prompt);
-        const response = result.response;
-        const responseText = response.text();
-        // 6. Parse and enhance the response
+        const responseText = result.response.text();
+        // 6. Parse and enhance Gemini response
         let prediction = { rawResponse: responseText };
         const parsedResponse = extractJsonFromResponse(responseText);
         if (parsedResponse) {
-            // Add fallback calculations if any prediction is missing
+            // Add fallbacks if Gemini misses any part
             if (!((_a = parsedResponse.predictions) === null || _a === void 0 ? void 0 : _a.monthly)) {
-                const lastMonth = Object.values(metrics.monthlyTrends)[0];
-                const monthlyAvg = Object.values(metrics.monthlyTrends).reduce((sum, month) => sum + month.total, 0) / Object.keys(metrics.monthlyTrends).length;
+                const avg = Object.values(metrics.monthlyTrends).reduce((a, b) => a + b.total, 0) / Object.keys(metrics.monthlyTrends).length;
+                const top3 = Object.entries(metrics.byCategory).sort((a, b) => b[1].total - a[1].total).slice(0, 3);
                 parsedResponse.predictions = Object.assign(Object.assign({}, parsedResponse.predictions), { monthly: {
                         estimatedTotal: {
-                            min: Math.round(monthlyAvg * 0.8),
-                            max: Math.round(monthlyAvg * 1.2)
+                            min: Math.round(avg * 0.8),
+                            max: Math.round(avg * 1.2)
                         },
-                        primaryCategories: Object.entries(metrics.byCategory)
-                            .sort((a, b) => b[1].total - a[1].total)
-                            .slice(0, 3)
-                            .map(([cat, data]) => ({
+                        primaryCategories: top3.map(([cat, d]) => ({
                             category: cat,
-                            expectedAmount: Math.round(data.total / Object.keys(metrics.monthlyTrends).length),
-                            percentage: Math.round((data.total / lastMonth.total) * 100)
+                            expectedAmount: Math.round(d.total / Object.keys(metrics.monthlyTrends).length),
+                            percentage: Math.round((d.total / avg) * 100)
                         })),
                         confidence: "medium"
                     } });
@@ -444,7 +536,7 @@ const GetPrediction = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             }
             prediction = parsedResponse;
         }
-        // 7. Return results
+        // 7. Return result
         return res.status(200).json({
             success: true,
             metrics,
@@ -461,3 +553,106 @@ const GetPrediction = (req, res) => __awaiter(void 0, void 0, void 0, function* 
     }
 });
 exports.GetPrediction = GetPrediction;
+// Investment suggestion function
+const InvestSuggestion = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        // Aggregate total spending data for the user, grouped by month name and year
+        const spendingData = yield trasanctions_js_1.default.aggregate([
+            {
+                $match: {
+                    "Paid_To_Who.Amount": { $exists: true, $ne: null }, // Ensure Amount exists
+                    "Paid_To_Who.name": { $exists: true, $ne: null } // Ensure Vendor name exists
+                }
+            },
+            {
+                $addFields: {
+                    amount: {
+                        $convert: {
+                            input: "$Paid_To_Who.Amount",
+                            to: "double",
+                            onError: 0,
+                            onNull: 0
+                        }
+                    },
+                    month: "$month", // Use the month name directly from the database
+                    year: { $year: "$Date" }, // Extract the year from the Date
+                    weekend: "$Paid_To_Who.Weekend" // Add weekend flag for analysis
+                }
+            },
+            {
+                $group: {
+                    _id: { month: "$month", year: "$year" }, // Group by month name and year
+                    totalSpent: { $sum: "$amount" }, // Calculate total spending for the month
+                    transactionCount: { $sum: 1 }, // Count number of transactions
+                    weekendSpend: { $sum: { $cond: [{ $eq: ["$weekend", true] }, "$amount", 0] } }, // Sum of weekend spend
+                    weekdaySpend: { $sum: { $cond: [{ $eq: ["$weekend", false] }, "$amount", 0] } } // Sum of weekday spend
+                }
+            }
+        ]);
+        // If no data is found, return an error message
+        if (!spendingData.length) {
+            return res.status(404).json({ message: "No transactions found for analysis." });
+        }
+        // Generate investment suggestions based on the spending data
+        const suggestions = spendingData.map(({ _id, totalSpent, transactionCount, weekendSpend, weekdaySpend }) => {
+            const { month, year } = _id;
+            // Calculate potential savings (Assuming user saves 10% of their total spending)
+            const potentialSavings = totalSpent * 0.10; // 10% of total spending
+            const weeklyIncome = totalSpent * 1.25; // Estimated income: 25% more than spending
+            let savingsProfile = "";
+            let investmentSuggestions = [];
+            // Analyze the weekend vs weekday spending and suggest adjustments
+            const weekendSpendingPercentage = (weekendSpend / totalSpent) * 100;
+            const weekdaySpendingPercentage = (weekdaySpend / totalSpent) * 100;
+            // Based on savings, we will categorize and suggest investments
+            if (potentialSavings < 1000) {
+                savingsProfile = "Low Savings Potential";
+                investmentSuggestions = [
+                    "Focus on budgeting using tools like Walnut or MoneyView.",
+                    "Consider opening a Fixed Deposit or Recurring Deposit (RD).",
+                    "Track your daily spending to find areas for improvement."
+                ];
+            }
+            else if (potentialSavings >= 1000 && potentialSavings < 5000) {
+                savingsProfile = "Moderate Savings Potential";
+                investmentSuggestions = [
+                    "Start SIPs (Systematic Investment Plans) in Debt Mutual Funds.",
+                    "Look into Gold ETFs for diversification.",
+                    "Explore Public Provident Fund (PPF) for tax-saving options."
+                ];
+            }
+            else {
+                savingsProfile = "High Savings Potential";
+                investmentSuggestions = [
+                    "Start SIPs in Equity Mutual Funds for long-term wealth creation.",
+                    "Explore National Pension Scheme (NPS) for retirement planning.",
+                    "Look into Diversified Equity Funds or Index Funds for growth."
+                ];
+            }
+            // Weekend Spending Analysis
+            if (weekendSpendingPercentage > 50) {
+                investmentSuggestions.push("Consider cutting back on weekend splurges to improve savings. Start meal prepping or reducing leisure spending.");
+            }
+            // Return detailed investment suggestions for each month
+            return {
+                month,
+                year,
+                totalSpent,
+                transactionCount,
+                potentialSavings,
+                savingsProfile,
+                weekendSpend,
+                weekdaySpend,
+                weekendSpendingPercentage,
+                weekdaySpendingPercentage,
+                investmentSuggestions
+            };
+        });
+        return res.status(200).json(suggestions);
+    }
+    catch (error) {
+        console.error("Error generating investment suggestion:", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
+exports.InvestSuggestion = InvestSuggestion;

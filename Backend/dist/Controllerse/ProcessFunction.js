@@ -85,8 +85,9 @@ const InsertData = (Data) => __awaiter(void 0, void 0, void 0, function* () {
             name: item.data.replace('Paid to ', '').trim(),
             time: item.time,
             Amount: item.amount,
-            Weekend: item.Weekend
-        }
+            Weekend: item.Weekend,
+        },
+        transactionType: item.type
     }));
     yield trasanctions_1.default.insertMany(formattedData);
 });

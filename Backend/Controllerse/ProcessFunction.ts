@@ -108,8 +108,9 @@ export const InsertData=async(Data:RawTransaction[]):Promise<void>=>{
       name: item.data.replace('Paid to ', '').trim(),
       time: item.time,
       Amount: item.amount,
-      Weekend: item.Weekend
-    }
+      Weekend: item.Weekend,
+    },
+    transactionType:item.type
   }));
    await Transactions_Collection.insertMany(formattedData)
    

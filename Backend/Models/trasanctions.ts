@@ -12,6 +12,7 @@ interface ITransaction extends Document {
   month: string;
   Date: Date;
   Paid_To_Who: IPaymentRecipient;
+  transactionType:string
 }
 
 // 2. Enhanced Schema definition
@@ -21,40 +22,44 @@ const Transactions_Schema = new Schema<ITransaction>({
     required: true,
     enum: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-    // uppercase: true // Ensures consistent casing
   },
   Date: {
     type: Date,
     required: true,
-    index: true // Add index for better query performance
+    index: true,
   },
   Paid_To_Who: {
     name: {
       type: String,
       required: true,
-      trim: true // Automatically removes whitespace
+      trim: true,
     },
     time: {
       type: String,
       required: true,
-      match: /^([0-1]?[0-9]|2[0-3]):[0-5][0-9] (AM|PM)$/ // Validates time format
+      match: /^([0-1]?[0-9]|2[0-3]):[0-5][0-9] (AM|PM)$/,
     },
     Amount: {
       type: String,
       required: true,
       validate: {
-        validator: (v: string) => /^\d+$/.test(v), // Ensures only digits
-        message: props => `${props.value} is not a valid amount!`
-      }
+        validator: (v: string) => /^\d+$/.test(v), 
+        message: props => `${props.value} is not a valid amount!`,
+      },
     },
     Weekend: {
       type: Boolean,
       required: true,
-      default: false
+      default: false,
     }
-  }
+  },
+  transactionType: { 
+    type: String, 
+    required: true, 
+    enum: ['CREDIT', 'DEBIT'],  // Ensuring only Credit or Debit are valid
+  },
 }, {
-  timestamps: true // Adds createdAt and updatedAt automatically
+  timestamps: true,
 });
 
 // 3. Fix the model name typo and add indexes
