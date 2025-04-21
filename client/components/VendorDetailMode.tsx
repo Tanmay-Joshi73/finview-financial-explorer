@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   LineChart, 
@@ -34,10 +34,13 @@ import {
   FileText,
   BarChart2,
   PieChart as PieChartIcon,
-  LayoutList
+  LayoutList,
+  ListIcon,
+  Info
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
-
+// import { VendorTransactionsList } from './VendorTransactionDetail';
+import VendorTransactionsList from './VendorTrasanctionDetail';
 interface VendorDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -115,10 +118,14 @@ const VendorDetailModal: React.FC<VendorDetailModalProps> = ({
         </DialogHeader>
         
         <Tabs defaultValue="transactions" className="w-full">
-          <TabsList className="grid grid-cols-3 mb-4">
+          <TabsList className="grid grid-cols-4 mb-4">
             <TabsTrigger value="transactions" className="flex items-center gap-1">
               <LayoutList className="h-4 w-4" />
-              <span>Transactions</span>
+              <span>Recent</span>
+            </TabsTrigger>
+            <TabsTrigger value="all-transactions" className="flex items-center gap-1">
+              <ListIcon className="h-4 w-4" />
+              <span>All Transactions</span>
             </TabsTrigger>
             <TabsTrigger value="patterns" className="flex items-center gap-1">
               <BarChart2 className="h-4 w-4" />
@@ -135,7 +142,7 @@ const VendorDetailModal: React.FC<VendorDetailModalProps> = ({
               <CardHeader className="bg-gray-50 border-b border-gray-100 pb-2">
                 <CardTitle className="text-base flex items-center">
                   <TrendingUp className="h-4 w-4 mr-2 text-gray-700" />
-                  Transaction Timeline
+                  Recent Transaction Timeline
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4">
@@ -200,6 +207,33 @@ const VendorDetailModal: React.FC<VendorDetailModalProps> = ({
                 )}
               </div>
             </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="all-transactions" className="focus-visible:outline-none">
+            <Card className="border-none shadow-md">
+              <CardHeader className="bg-gray-50 border-b border-gray-100">
+                <CardTitle className="text-base flex items-center">
+                  <ListIcon className="h-4 w-4 mr-2 text-gray-700" />
+                  All Transactions History
+                  <Badge variant="outline" className="ml-2">
+                    {vendorData.transactionCount} transactions
+                  </Badge>
+                </CardTitle>
+                <CardDescription>
+                  Complete history of all transactions with {vendorName}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[600px]">
+                  <div className="p-4">
+                    <VendorTransactionsList
+                      transactions={recentTransactions}
+                      vendorName={vendorName}
+                    />
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
           </TabsContent>
           
           <TabsContent value="patterns" className="focus-visible:outline-none">

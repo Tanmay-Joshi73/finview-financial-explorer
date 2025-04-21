@@ -36,7 +36,6 @@ import {
 } from "lucide-react";
 // import VendorDetailModal from "./VendorDetailModal";
 import VendorDetailModal from "./VendorDetailMode";
-
 // Custom chart tooltip component
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
