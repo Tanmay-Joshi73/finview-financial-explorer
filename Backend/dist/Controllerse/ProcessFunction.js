@@ -78,6 +78,7 @@ const Csv_Convertor = (transaction, output) => __awaiter(void 0, void 0, void 0,
 });
 exports.Csv_Convertor = Csv_Convertor;
 const InsertData = (Data) => __awaiter(void 0, void 0, void 0, function* () {
+    yield trasanctions_1.default.deleteMany({});
     const formattedData = Data.map((item) => ({
         month: item.MonthName,
         Date: item.date,

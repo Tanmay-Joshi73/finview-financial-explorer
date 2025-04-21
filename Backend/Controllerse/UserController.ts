@@ -609,7 +609,7 @@ function generatePredictionPrompt(
 ) {
   return `
 **Top Vendors Analysis for Spending Prediction**
-
+The provided data includes transactions spanning the last 3–4 months. Please analyze patterns across this timeframe to make accurate predictions for the upcoming month
 **🏆 Top ${topVendors.length} Vendors (${metrics.topVendorsCoverage.toFixed(1)}% of total spending):**
 ${topVendors.map(v => `- ${v.name}: ₹${v.totalAmount} (${v.category}, ${v.recurrence}, ${v.weekendPercentage.toFixed(1)}% weekends)`).join('\n')}
 

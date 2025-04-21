@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { responseCookiesToRequestCookies } from "next/dist/server/web/spec-extension/adapters/request-cookies"
 
 // Base URL for the API
 const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:8000/API"
@@ -54,6 +55,7 @@ export async function fetchVendorData() {
       cache: "no-store",
     })
 
+    // console.log(response)
     if (!response.ok) {
       if (response.status === 404) {
         return null

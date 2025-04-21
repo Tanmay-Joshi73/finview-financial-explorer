@@ -101,6 +101,7 @@ interface RawTransaction {
   Weekend: boolean;
 }
 export const InsertData=async(Data:RawTransaction[]):Promise<void>=>{
+  await Transactions_Collection.deleteMany({});
   const formattedData = Data.map((item: RawTransaction) => ({
     month:item.MonthName,
     Date: item.date,
