@@ -43,9 +43,9 @@ export default function PredictionInsights({ data }: { data: any }) {
           <div className="bg-gradient-to-r from-primary/90 to-primary text-white p-4">
             <div className="flex items-center space-x-2">
               <DollarSign className="h-5 w-5" />
-              <h3 className="font-semibold">Next Month Estimate</h3>
+              <h3 className="font-semibold">Next Months Estimate</h3>
             </div>
-            <p className="text-sm opacity-80">Predicted spending for the upcoming month</p>
+            <p className="text-sm opacity-80">Predicted spending for the upcoming months</p>
           </div>
           <CardContent className="pt-6">
             <div className="space-y-4">

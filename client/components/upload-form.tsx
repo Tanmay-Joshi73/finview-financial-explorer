@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+
+
 import { Upload, FileUp, Check, AlertCircle, FileType, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -99,7 +101,8 @@ export default function UploadForm() {
       formData.append("file", file)
 
       await uploadStatement(formData)
-
+      window.location.reload()
+      // revalidatePath("/dashboard") // Add this after your upload logic
       clearInterval(progressInterval)
       setUploadProgress(100)
       setSuccess(true)
