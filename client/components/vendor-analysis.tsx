@@ -1,10 +1,8 @@
-"use client"
-
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   BarChart,
   Bar,
@@ -22,8 +20,8 @@ import {
   PolarAngleAxis, 
   PolarRadiusAxis,
   Radar
-} from "recharts"
-import { formatCurrency, formatDate } from "@/lib/utils"
+} from "recharts";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -33,8 +31,11 @@ import {
   BarChart2, 
   PieChart as PieChartIcon,
   RadarIcon,
-  ListFilter
-} from "lucide-react"
+  ListFilter,
+  Info
+} from "lucide-react";
+// import VendorDetailModal from "./VendorDetailModal";
+import VendorDetailModal from "./VendorDetailMode";
 
 // Custom chart tooltip component
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -50,14 +51,15 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           </div>
         ))}
       </div>
-    )
+    );
   }
-  return null
-}
+  return null;
+};
 
 export default function VendorAnalysis({ data }: { data: any }) {
-  const [chartType, setChartType] = useState("bar")
-  const [selectedVendor, setSelectedVendor] = useState<string | null>(null)
+  const [chartType, setChartType] = useState("bar");
+  const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
+  const [showVendorDetail, setShowVendorDetail] = useState(false);
   
   if (!data || !data.vendorStats) {
     return (
@@ -72,13 +74,29 @@ export default function VendorAnalysis({ data }: { data: any }) {
           </p>
         </CardContent>
       </Card>
-    )
+    );
   }
 
-  const { vendorStats, monthlyPatterns, timePatterns, dailyPatterns } = data
+  const { vendorStats, monthlyPatterns, timePatterns, dailyPatterns, recentTransactions } = data;
+
+  // Find selected vendor's full data
+  const selectedVendorData = selectedVendor ? 
+    vendorStats.find((v: any) => v._id === selectedVendor) : null;
+
+  // Get selected vendor's monthly pattern
+  const selectedVendorMonthlyData = selectedVendor ?
+    monthlyPatterns.find((v: any) => v._id === selectedVendor)?.monthlyBreakdown || [] : [];
+
+  // Get selected vendor's daily pattern
+  const selectedVendorDailyData = selectedVendor ?
+    dailyPatterns.find((v: any) => v._id === selectedVendor)?.dayWise || [] : [];
+
+  // Get selected vendor's recent transactions
+  const selectedVendorTransactions = selectedVendor ?
+    recentTransactions.find((v: any) => v._id === selectedVendor)?.recent || [] : [];
 
   // Top vendors for display (can be adjusted)
-  const topVendors = vendorStats.slice(0, 6)
+  const topVendors = vendorStats.slice(0, 6);
 
   // Format vendor stats for chart
   const vendorChartData = topVendors.map((vendor: any) => ({
@@ -87,28 +105,48 @@ export default function VendorAnalysis({ data }: { data: any }) {
     transactions: vendor.transactionCount,
     average: Number.parseFloat(vendor.avgTransaction),
     frequency: vendor.transactionCount / 30, // Transactions per month approximation
-  }))
+  }));
 
   // Colors for charts with better palette
-  const COLORS = ["#4F46E5", "#10B981", "#F59E0B", "#EC4899", "#8B5CF6", "#06B6D4"]
+  const COLORS = ["#4F46E5", "#10B981", "#F59E0B", "#EC4899", "#8B5CF6", "#06B6D4"];
   
   // Calculate spending indicators
-  const totalSpending = topVendors.reduce((sum: number, vendor: any) => sum + Number.parseFloat(vendor.totalSpent), 0)
-  const highestVendor = topVendors[0]
-  const mostFrequentVendor = [...topVendors].sort((a, b) => b.transactionCount - a.transactionCount)[0]
+  const totalSpending = topVendors.reduce((sum: number, vendor: any) => sum + Number.parseFloat(vendor.totalSpent), 0);
+  const highestVendor = topVendors[0];
+  const mostFrequentVendor = [...topVendors].sort((a, b) => b.transactionCount - a.transactionCount)[0];
   
   // Handle vendor selection
   const handleVendorSelect = (vendor: string) => {
-    setSelectedVendor(selectedVendor === vendor ? null : vendor)
-  }
+    if (selectedVendor === vendor) {
+      // If clicking the same vendor, toggle details modal
+      setShowVendorDetail(true);
+    } else {
+      // If different vendor, select it and show details
+      setSelectedVendor(vendor);
+      setShowVendorDetail(true);
+    }
+  };
 
   // Filter data based on selection
   const displayData = selectedVendor 
     ? vendorChartData.filter(v => v.name === selectedVendor)
-    : vendorChartData
+    : vendorChartData;
 
   return (
     <div className="space-y-6">
+      {/* Vendor Detail Modal */}
+      {selectedVendor && (
+        <VendorDetailModal 
+          isOpen={showVendorDetail}
+          onClose={() => setShowVendorDetail(false)}
+          vendorName={selectedVendor}
+          vendorData={selectedVendorData}
+          recentTransactions={selectedVendorTransactions}
+          monthlyData={selectedVendorMonthlyData}
+          dailyData={selectedVendorDailyData}
+        />
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-none shadow-md hover:shadow-lg transition-shadow">
@@ -214,6 +252,17 @@ export default function VendorAnalysis({ data }: { data: any }) {
           <CardTitle className="flex items-center">
             <Store className="h-5 w-5 mr-2 text-gray-700" />
             Vendor Spending Analysis
+            {selectedVendor && (
+              <Button
+                variant="ghost" 
+                size="sm" 
+                className="ml-2 text-blue-600"
+                onClick={() => setShowVendorDetail(true)}
+              >
+                <Info className="h-4 w-4 mr-1" />
+                View Details
+              </Button>
+            )}
           </CardTitle>
           <CardDescription>
             {selectedVendor 
@@ -373,9 +422,9 @@ export default function VendorAnalysis({ data }: { data: any }) {
                 </TableHeader>
                 <TableBody>
                   {topVendors.map((vendor: any, idx: number) => {
-                    const first = new Date(vendor.firstTransaction)
-                    const last = new Date(vendor.lastTransaction)
-                    const durationDays = Math.round((last.getTime() - first.getTime()) / (1000 * 60 * 60 * 24))
+                    const first = new Date(vendor.firstTransaction);
+                    const last = new Date(vendor.lastTransaction);
+                    const durationDays = Math.round((last.getTime() - first.getTime()) / (1000 * 60 * 60 * 24));
 
                     return (
                       <TableRow 
@@ -400,7 +449,7 @@ export default function VendorAnalysis({ data }: { data: any }) {
                           </Badge>
                         </TableCell>
                       </TableRow>
-                    )
+                    );
                   })}
                 </TableBody>
               </Table>
@@ -440,5 +489,5 @@ export default function VendorAnalysis({ data }: { data: any }) {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
